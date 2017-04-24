@@ -1,28 +1,53 @@
 var path = require('path');
 var archive = require('../helpers/archive-helpers');
+var httpHelpers = require('./http-helpers');
 var fs = require('fs');
-var helpers = require('./http-helpers')
+var url = require('url');
 // require more modules/folders here!
 
 exports.handleRequest = function (req, res) {
+
+  var encoding = {encoding: 'utf8'};
+
   if (req.method === 'GET' && req.url === '/') {
-    res.writeHead(200, helpers.headers);
-    fs.readFile(archive.paths.siteAssets + '/index.html', {encoding: 'utf8'}, function (err, data){
-      res.end(data)
-      console.log("HERE---->>", data);
+    fs.readFile(archive.paths.siteAssets + '/index.html', encoding, (err, data) => {
+      if (err) {
+        console.error(err);
+      }
+      res.end(data);
     });
   } else if (req.method === 'GET') {
-    var url = req.url;
-    console.log("IM HERE!")
-    archive.readListOfUrls(function(data) {
-      console.log('Link ---> ', data);
-      if (url === data) {
-        res.end(data)
+    var requestedURL = req.url;
+    fs.readFile(archive.paths.archivedSites + requestedURL, encoding, (err, data) => {
+      if (err) {
+        // res.statusCode = 404;
+        fs.readFile(archive.paths.siteAssets + requestedURL, encoding, (err, data) => {
+          if (err) {
+            res.statusCode = 404;
+          }
+          res.end(data);
+        });
       } else {
-        archive.addUrlToList(url);
+        res.statusCode = 200;
+        res.end(data);
       }
-    })
+    });
+  } else if (req.method === 'POST') {
+    var postedURL = '';
+    res.statusCode = 302;
+    req.on('data', (data) => {
+      postedURL += data;
+    });
+    req.on('end', () => {
+      postedURL = postedURL.slice(4);
+      archive.addUrlToList(postedURL, () => {
+        fs.readFile(archive.paths.siteAssets + '/loading.html', encoding, (err, data) => {
+          if (err) {
+            console.error(err);
+          }
+          res.end(data);
+        });
+      });
+    });
   }
-
-  // res.end(archive.paths.list);
 };
